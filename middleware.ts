@@ -1,48 +1,91 @@
-import { NextResponse } from "next/server";
+import { NextResponse, URLPattern } from "next/server";
 import type { NextRequest } from "next/server";
-import staticVariants from "./app/variants.config";
+import variantsConfig from "./app/variants.config";
 import {
   getRandomVariant,
   type AssignedVariants,
   encodeVariantsIntoParam,
   VARIANTS_PATH_SEGMENT,
+  type Variant,
 } from "@/app/lib/variants/core";
+import { createVariantMatcher } from "@/app/lib/variants/matcher";
 
-// This function can be marked `async` if using `await` inside
+const variantsMatcher = createVariantMatcher(variantsConfig);
+
+function getAssignedVariants(request: NextRequest) {
+  const assignedVariantsRaw = request.cookies.get("assignedVariants")?.value;
+  const previouslyAssignedVariants: AssignedVariants = assignedVariantsRaw
+    ? JSON.parse(assignedVariantsRaw)
+    : {};
+  return previouslyAssignedVariants;
+}
+
+async function getOrAssignVariantsForParam(
+  previouslyAssignedVariants: AssignedVariants,
+  applicableVariants: Set<Variant>,
+) {
+  const variantsForParam: AssignedVariants = {};
+  let needCookieUpdate = false;
+  for (const variant of applicableVariants.values()) {
+    let variantValue: string;
+    if (!(variant.id in previouslyAssignedVariants)) {
+      variantValue = await getRandomVariant(variant);
+      console.log("New variant value to assign:", {
+        [variant.id]: variantValue,
+      });
+      needCookieUpdate = true;
+    } else {
+      variantValue = previouslyAssignedVariants[variant.id];
+    }
+    variantsForParam[variant.id] = variantValue;
+  }
+  return {
+    param: variantsForParam,
+    persist: needCookieUpdate
+      ? {
+          ...previouslyAssignedVariants,
+          ...variantsForParam,
+        }
+      : null,
+  };
+}
+
 export async function middleware(request: NextRequest) {
   // console.log("middleware :: nextUrl", request.nextUrl.pathname);
+
+  const applicableVariants = variantsMatcher(request.nextUrl);
   if (request.nextUrl.pathname.match(VARIANTS_PATH_SEGMENT)) {
     // console.log("middleware :: already rewritten");
     return;
   }
-  const assignedVariantsRaw = request.cookies.get("assignedVariants")?.value;
-  const assignedVariants: AssignedVariants = assignedVariantsRaw
-    ? JSON.parse(assignedVariantsRaw)
-    : {};
 
-  let needCookieUpdate = false;
-  for (const variant of staticVariants) {
-    if (!(variant.id in assignedVariants)) {
-      const variantValue = await getRandomVariant(variant);
-      assignedVariants[variant.id] = variantValue;
-      needCookieUpdate = true;
-    }
-  }
-  const variantsParam = encodeVariantsIntoParam(assignedVariants);
+  const previouslyAssignedVariants = getAssignedVariants(request);
+  const { param: variantsForParam, persist: variantsToPersist } =
+    await getOrAssignVariantsForParam(
+      previouslyAssignedVariants,
+      applicableVariants,
+    );
 
-  const internalUrl =
-    request.nextUrl.protocol +
-    "//" +
-    request.nextUrl.host +
-    `/${variantsParam}` +
-    request.nextUrl.pathname +
-    request.nextUrl.search +
-    request.nextUrl.hash;
+  const variantsParam = encodeVariantsIntoParam(
+    variantsForParam,
+    applicableVariants,
+  );
+
+  const internalUrl = Object.assign(request.nextUrl.clone(), {
+    pathname: `/${variantsParam}` + request.nextUrl.pathname,
+  });
+
   // console.log("middleware :: internalUrl", internalUrl);
   const response = NextResponse.rewrite(internalUrl);
-  if (needCookieUpdate) {
-    console.log("middleware :: assigning updated variants", assignedVariants);
-    const cookieValue = JSON.stringify(assignedVariants);
+  if (variantsToPersist) {
+    console.log(
+      "middleware :: saving newly assigned variants into cookie",
+      variantsToPersist,
+      "\n(previous:",
+      previouslyAssignedVariants,
+      ")",
+    );
+    const cookieValue = JSON.stringify(variantsToPersist);
     response.cookies.set("assignedVariants", cookieValue, {
       maxAge: 24 * 60 * 60,
     });

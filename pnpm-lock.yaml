@@ -20,6 +20,9 @@ dependencies:
   react-dom:
     specifier: ^18
     version: 18.2.0(react@18.2.0)
+  urlpattern-polyfill:
+    specifier: ^10.0.0
+    version: 10.0.0
 
 devDependencies:
   '@types/node':
@@ -2312,6 +2315,10 @@ packages:
     dependencies:
       punycode: 2.3.1
     dev: true
+
+  /urlpattern-polyfill@10.0.0:
+    resolution: {integrity: sha512-H/A06tKD7sS1O1X2SshBVeA5FLycRpjqiBeqGKmBwBDBy28EnRjORxTNe269KSSr5un5qyWi1iL61wLxpd+ZOg==}
+    dev: false
 
   /which-boxed-primitive@1.0.2:
     resolution: {integrity: sha512-bwZdv0AKLpplFY2KZRX6TvyuN7ojjr7lwkg6ml0roIy9YeuSr7JS372qlNW18UQYzgYK9ziGcerWqZOmEn9VNg==}

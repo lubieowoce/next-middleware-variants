@@ -1,0 +1,3 @@
+// technically this exists, but it's not available in generateStaticParams...
+// export { URLPattern } from "next/server";
+export { URLPattern } from "urlpattern-polyfill";

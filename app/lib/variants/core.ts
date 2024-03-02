@@ -1,4 +1,7 @@
-import { sortBy } from "lodash-es";
+import { pick, sortBy } from "lodash-es";
+import { setToArray } from "./utils";
+
+export const VARIANTS_PARAM_NAME = "variants";
 
 export type Variant = { id: string; variants: string[] };
 
@@ -35,7 +38,14 @@ export const VARIANTS_PATH_SEGMENT = new RegExp(
   "/" + VARIANTS_PARAM_PATTERN.source + "/",
 );
 
-export function encodeVariantsIntoParam(assignedVariants: AssignedVariants) {
+export function encodeVariantsIntoParam(
+  assignedVariants: AssignedVariants,
+  applicableVariants?: Set<Variant>,
+) {
+  if (applicableVariants) {
+    const ids = setToArray(applicableVariants).map((variant) => variant.id);
+    assignedVariants = pick(assignedVariants, ids);
+  }
   const variantsParamRaw = sortBy(
     Object.entries(assignedVariants),
     ([id]) => id,

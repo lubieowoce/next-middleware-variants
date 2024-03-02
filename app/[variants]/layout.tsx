@@ -1,25 +1,12 @@
 import { PropsWithChildren } from "react";
-import { AssignedVariants, withVariants } from "@/app/lib/variants";
-import { encodeVariantsIntoParam } from "@/app/lib/variants/core";
+import { getVariants, withVariants } from "@/app/lib/variants";
+import { generateVariantParams } from "@/app/lib/variants/static";
 
 export const dynamicParams = true;
 
 export async function generateStaticParams(): Promise<Params[]> {
-  const { default: staticVariants } = await import("@/app/variants.config");
-
-  // cartesian product of all possible assignments
-  let assignments: AssignedVariants[] = [{}];
-  for (const variant of staticVariants) {
-    assignments = assignments.flatMap((assignment) =>
-      variant.variants.map((variantValue) => ({
-        ...assignment,
-        [variant.id]: variantValue,
-      })),
-    );
-  }
-  return assignments.map((assignment) => ({
-    variants: encodeVariantsIntoParam(assignment),
-  }));
+  const { default: config } = await import("@/app/variants.config");
+  return generateVariantParams("/", config);
 }
 
 type Params = {
@@ -28,7 +15,19 @@ type Params = {
 };
 
 function Layout({ params, children }: PropsWithChildren<{ params: Params }>) {
-  return <>{children}</>;
+  return (
+    <>
+      {<VariantsDebug />}
+      {children}
+    </>
+  );
+}
+
+async function VariantsDebug() {
+  if (process.env.NODE_ENV !== "development") {
+    return null;
+  }
+  return <div style={{}}>{JSON.stringify(await getVariants())}</div>;
 }
 
 export default withVariants(Layout);
