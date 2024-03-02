@@ -1,13 +1,12 @@
 import { ResetVariants } from "@/app/reset-variants";
 import Link from "next/link";
-import { provideVariants, getVariant } from "@/app/lib/variants";
+import { withVariants, getVariant } from "@/app/lib/variants";
 
 type Params = {
   [param: string]: string;
 };
 
-export default async function Foo({ params }: { params: Params }) {
-  // provideVariants(params.variants);
+export async function Foo({ params }: { params: Params }) {
   return (
     <main>
       <div>
@@ -24,3 +23,5 @@ export default async function Foo({ params }: { params: Params }) {
     </main>
   );
 }
+
+export default withVariants(Foo);

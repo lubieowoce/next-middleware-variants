@@ -1,6 +1,6 @@
 import { ResetVariants } from "@/app/reset-variants";
 import Link from "next/link";
-import { provideVariants, getVariant } from "@/app/lib/variants";
+import { getVariant, withVariants } from "@/app/lib/variants";
 
 export const dynamic = "error";
 
@@ -9,8 +9,7 @@ type Params = {
   [param: string]: string;
 };
 
-export default async function Home({ params }: { params: Params }) {
-  // provideVariants(params.variants);
+async function Home({ params }: { params: Params }) {
   return (
     <main>
       <div>
@@ -28,3 +27,5 @@ export default async function Home({ params }: { params: Params }) {
     </main>
   );
 }
+
+export default withVariants(Home);

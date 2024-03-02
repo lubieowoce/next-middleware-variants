@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import staticVariants from "./app/variants";
+import staticVariants from "./app/variants.config";
 import {
   getRandomVariant,
   type AssignedVariants,
   encodeVariantsIntoParam,
-  VARIANTS_PATH_PREFIX,
+  VARIANTS_PATH_SEGMENT,
 } from "@/app/lib/variants/core";
 
 // This function can be marked `async` if using `await` inside
 export async function middleware(request: NextRequest) {
   // console.log("middleware :: nextUrl", request.nextUrl.pathname);
-  if (request.nextUrl.pathname.match(VARIANTS_PATH_PREFIX)) {
+  if (request.nextUrl.pathname.match(VARIANTS_PATH_SEGMENT)) {
     // console.log("middleware :: already rewritten");
     return;
   }

@@ -1,4 +1,5 @@
 import { cache } from "react";
+
 export const createRequestLocal = <T>({ deadlockTimeout = 10_000 } = {}) =>
   cache(() => {
     const { promise: valuePromise, resolve } = promiseWithResolvers<T>();
@@ -35,8 +36,10 @@ export const createRequestLocal = <T>({ deadlockTimeout = 10_000 } = {}) =>
         if (didResolve) {
           if (value !== resolvedValue!) {
             throw new Error(
-              `Attempted to set the value to ${value} after it was already set to ${resolvedValue}. This could leat to inconsistent results`,
+              `Attempted to set the value to ${value} after it was already set to ${resolvedValue}. This could lead to inconsistent results`,
             );
+          } else {
+            return;
           }
         }
         didResolve = true;
