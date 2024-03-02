@@ -5,9 +5,10 @@ import { createVariantMatcher } from "@/app/lib/variants/matcher";
 import { resolveVariantsIntoParam } from "@/app/lib/variants/resolve";
 
 import variantsConfig from "./app/variants.config";
+import { variantsProvider } from "./app/variants-provider";
 import {
+  cookieVariantProvider,
   createCookieVariantResolver,
-  cookieVariantResolverStorage,
 } from "./app/lib/cookie-variant-provider";
 
 const variantsMatcher = createVariantMatcher(variantsConfig);
@@ -24,8 +25,8 @@ export async function middleware(request: NextRequest) {
   const cookieVariantResolver = createCookieVariantResolver(
     () => request.cookies,
   );
-  const variantsParam = await cookieVariantResolverStorage.run(
-    cookieVariantResolver,
+  const variantsParam = await variantsProvider.runWithProviders(
+    [[cookieVariantProvider, () => cookieVariantResolver]],
     () => resolveVariantsIntoParam(applicableVariants),
   );
 

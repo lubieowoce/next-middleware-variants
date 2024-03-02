@@ -1,24 +1,22 @@
 import Link from "next/link";
 import { withVariants } from "@/app/variants-provider";
-import { generateVariantParams } from "@/app/lib/variants/static";
 
 import { VariantsDebug } from "@/app/variants-debug";
 import { colorVariant, fontVariant } from "@/app/variants.config";
 
-export async function generateStaticParams(): Promise<Params[]> {
-  const { default: config } = await import("@/app/variants.config");
-  return generateVariantParams("/foo", config);
-}
+export const dynamic = "force-dynamic";
 
 type Params = {
   [param: string]: string;
 };
 
-async function Foo({ params }: { params: Params }) {
+async function DynamicPage({ params }: { params: Params }) {
   return (
     <main style={{ fontFamily: await fontVariant() }}>
       <div>
-        <h1 style={{ fontSize: "24px", color: await colorVariant() }}>Foo!</h1>
+        <h1 style={{ fontSize: "24px", color: await colorVariant() }}>
+          DynamicPage!
+        </h1>
         <VariantsDebug />
         <br />
       </div>
@@ -30,4 +28,4 @@ async function Foo({ params }: { params: Params }) {
   );
 }
 
-export default withVariants(Foo);
+export default withVariants(DynamicPage);

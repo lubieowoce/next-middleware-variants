@@ -1,5 +1,5 @@
 import { PropsWithChildren } from "react";
-import { withVariants } from "@/app/lib/variants";
+import { withVariants } from "@/app/variants-provider";
 // import { VariantsDebug } from "@/app/variants-debug";
 import { generateVariantParams } from "@/app/lib/variants/static";
 

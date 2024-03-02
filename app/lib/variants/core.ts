@@ -64,6 +64,10 @@ export function encodeVariantsIntoParam(
 }
 
 export function decodeVariantsFromParam(param: string): AssignedVariants {
+  if (param === PREFIX) {
+    // no static variants were added. this is uncommon, but expected.
+    return {};
+  }
   if (!param.match(VARIANTS_PARAM_ONLY)) {
     console.error(
       `Variants param value '${param}' does not match expected pattern: ${VARIANTS_PARAM_ONLY}. Defaulting variants to empty`,

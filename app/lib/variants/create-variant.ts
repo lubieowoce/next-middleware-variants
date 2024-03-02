@@ -1,7 +1,7 @@
 import { renameFunction, lazyThunk } from "./utils";
 import {
   stashVariantOptions,
-  // resolveVariantValueFromOptions,
+  resolveVariantValueFromOptions,
   type VariantGetter,
   type VariantOptions,
 } from "./variant-base";
@@ -19,17 +19,12 @@ export function createVariant(
     // so we have to be careful and import it all lazily
     const { getVariants } = await import("./react-server");
     const { cache } = await import("react");
-    const { headers } = await import("next/headers");
 
     return cache(async () => {
       const variantsFromParams = await getVariants();
       if (!(id in variantsFromParams)) {
-        // TODO: how do we call the resolver dynamically, during a render of a dynamic page?
-        // we can't easily do this if it needs some context...
-        // return resolveVariantValueFromOptions(options);
-
-        headers(); // make sure we error out during static generation
-        throw new Error("Variant not assigned via params: " + id);
+        // TODO: reading works fine, but what if a provider needs to write?
+        return resolveVariantValueFromOptions(options);
       }
       return variantsFromParams[id];
     });

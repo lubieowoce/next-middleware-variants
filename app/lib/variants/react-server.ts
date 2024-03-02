@@ -8,11 +8,11 @@ import { lazyCache } from "./lazy-cache";
 
 export { type Variant, type AssignedVariants } from "./core";
 
+const variantsFromParamsLocal = createRequestLocal<AssignedVariants>();
+
 export const decodeVariantsFromParamCached = lazyCache(
   decodeVariantsFromParamUncached,
 );
-
-const variantsFromParamsLocal = createRequestLocal<AssignedVariants>();
 
 export function provideVariants(param: string) {
   const parsed = decodeVariantsFromParamCached(param);

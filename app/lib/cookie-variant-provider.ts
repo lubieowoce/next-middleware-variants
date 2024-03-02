@@ -1,9 +1,17 @@
 import type { NextRequest, NextResponse } from "next/server";
 import type { cookies } from "next/headers";
-import { createVariant, type AssignedVariants } from "@/app/lib/variants";
+import {
+  createVariant,
+  getVariantProvider,
+  type AssignedVariants,
+  createVariantProvider,
+} from "@/app/lib/variants";
 
 type RequestCookies = NextRequest["cookies"] | ReturnType<typeof cookies>;
 type ResponseCookies = NextResponse["cookies"] | ReturnType<typeof cookies>;
+
+export const cookieVariantProvider =
+  createVariantProvider<CookieVariantResolver>("cookie-variant");
 
 export function createCookieVariant(options: {
   id: string;
@@ -14,9 +22,9 @@ export function createCookieVariant(options: {
     id: options.id,
     variants: options.variants,
     //fallback: options.fallback,
-    resolve() {
-      const resolver = cookieVariantResolverStorage.getStore();
-      return resolver!.resolve(options.id, options.variants);
+    async resolve() {
+      const resolver = await getVariantProvider(cookieVariantProvider);
+      return resolver.resolve(options.id, options.variants);
     },
   });
 }
