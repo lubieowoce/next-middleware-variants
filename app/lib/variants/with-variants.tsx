@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { encodeVariantsIntoParam, VARIANTS_PARAM_NAME } from "./core";
+import { renameFunction } from './utils'
 import { provideVariants } from "./react-server";
 
 export function withVariants<TComponent extends (props: any & {}) => ReactNode>(
@@ -22,13 +23,4 @@ export function withVariants<TComponent extends (props: any & {}) => ReactNode>(
   ) as TComponent;
 }
 
-function renameFunction<TFn extends (...args: any[]) => any>(
-  fn: TFn,
-  name: string,
-): TFn {
-  return {
-    [name]: function (...args: Parameters<TFn>) {
-      return fn.call(this, ...args);
-    },
-  }[name] as TFn;
-}
+

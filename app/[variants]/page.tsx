@@ -1,6 +1,8 @@
-import { ResetVariants } from "@/app/reset-variants";
 import Link from "next/link";
-import { getVariant, withVariants } from "@/app/lib/variants";
+import { withVariants } from "@/app/lib/variants";
+
+import { colorVariant } from "@/app/variants.config";
+import { VariantsDebug } from "../variants-debug";
 
 export const dynamic = "error";
 
@@ -13,14 +15,10 @@ async function Home({ params }: { params: Params }) {
   return (
     <main>
       <div>
-        Home!{" "}
-        {JSON.stringify({
-          123: await getVariant("123"),
-          // 456: await getVariant("456"),
-          //789: await getVariant("789").catch((err) => err.message),
-        })}
+        <h1 style={{ fontSize: "24px", color: await colorVariant() }}>Home!</h1>
       </div>
-      <ResetVariants />
+      <VariantsDebug />
+      <br />
       <div style={{ display: "flex", flexDirection: "column" }}>
         <Link href={"/foo"}>go to /foo</Link>
         <Link href={"/bar/first"}>go to /bar/first</Link>

@@ -1,5 +1,6 @@
 import { PropsWithChildren } from "react";
-import { getVariants, withVariants } from "@/app/lib/variants";
+import { withVariants } from "@/app/lib/variants";
+// import { VariantsDebug } from "@/app/variants-debug";
 import { generateVariantParams } from "@/app/lib/variants/static";
 
 export const dynamicParams = true;
@@ -17,17 +18,10 @@ type Params = {
 function Layout({ params, children }: PropsWithChildren<{ params: Params }>) {
   return (
     <>
-      {<VariantsDebug />}
+      {/* <VariantsDebug /><br /> */}
       {children}
     </>
   );
-}
-
-async function VariantsDebug() {
-  if (process.env.NODE_ENV !== "development") {
-    return null;
-  }
-  return <div style={{}}>{JSON.stringify(await getVariants())}</div>;
 }
 
 export default withVariants(Layout);

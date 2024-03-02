@@ -6,12 +6,13 @@ export function ResetVariants() {
   const router = useRouter();
   return (
     <button
+      style={{ fontFamily: 'monospace'}}
       onClick={() => {
         document.cookie = `assignedVariants=`;
         router.refresh();
       }}
     >
-      Reset variants
+      reset
     </button>
   );
 }

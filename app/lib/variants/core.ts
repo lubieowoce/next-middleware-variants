@@ -1,20 +1,12 @@
 import { pick, sortBy } from "lodash-es";
 import { setToArray } from "./utils";
+import { getVariantId, type VariantGetter } from "./variant-base";
 
 export const VARIANTS_PARAM_NAME = "variants";
 
 export type Variant = { id: string; variants: string[] };
 
 export type VariantsConfig = Variant[];
-
-export function createVariant<T extends Variant>(variantDefinition: T): T {
-  return variantDefinition;
-}
-
-export async function getRandomVariant(variant: Variant) {
-  const ix = Math.floor(Math.random() * variant.variants.length);
-  return variant.variants[ix];
-}
 
 export type AssignedVariants = Record<string, string>;
 
@@ -40,10 +32,12 @@ export const VARIANTS_PATH_SEGMENT = new RegExp(
 
 export function encodeVariantsIntoParam(
   assignedVariants: AssignedVariants,
-  applicableVariants?: Set<Variant>,
+  applicableVariants?: Set<VariantGetter>,
 ) {
   if (applicableVariants) {
-    const ids = setToArray(applicableVariants).map((variant) => variant.id);
+    const ids = setToArray(applicableVariants).map((variant) =>
+      getVariantId(variant),
+    );
     assignedVariants = pick(assignedVariants, ids);
   }
   const variantsParamRaw = sortBy(
@@ -76,7 +70,7 @@ export function decodeVariantsFromParam(param: string): AssignedVariants {
     );
     return {};
   }
-  param = param.slice(PREFIX.length);
+  param = decodeURIComponent(param).slice(PREFIX.length);
   return Object.fromEntries(
     param
       .split(ITEM_SEPARATOR)

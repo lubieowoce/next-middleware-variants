@@ -1,7 +1,9 @@
-import { ResetVariants } from "@/app/reset-variants";
 import Link from "next/link";
-import { withVariants, getVariant } from "@/app/lib/variants";
+import { withVariants } from "@/app/lib/variants";
 import { generateVariantParams } from "@/app/lib/variants/static";
+
+import { VariantsDebug } from "@/app/variants-debug";
+import { colorVariant, fontVariant } from "@/app/variants.config";
 
 export async function generateStaticParams(): Promise<Params[]> {
   const { default: config } = await import("@/app/variants.config");
@@ -14,15 +16,13 @@ type Params = {
 
 async function Foo({ params }: { params: Params }) {
   return (
-    <main>
+    <main style={{ fontFamily: await fontVariant() }}>
       <div>
-        Foo!{" "}
-        {JSON.stringify({
-          123: await getVariant("123"),
-          456: await getVariant("456"),
-        })}
+        <h1 style={{ fontSize: "24px", color: await colorVariant() }}>Foo!</h1>
+        <VariantsDebug />
+        <br />
       </div>
-      <ResetVariants />
+
       <div style={{ display: "flex", flexDirection: "column" }}>
         <Link href={"/"}>go to /</Link>
       </div>

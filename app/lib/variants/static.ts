@@ -1,11 +1,11 @@
 import { VariantMatcherConfig, createVariantMatcher } from "./matcher";
 import {
-  type Variant,
   AssignedVariants,
   encodeVariantsIntoParam,
   VARIANTS_PARAM_NAME,
 } from "./core";
 import { setToArray } from "./utils";
+import { VariantGetter, getStaticVariants, getVariantId } from "./variant-base";
 
 export function generateVariantParams(
   path: string,
@@ -25,13 +25,15 @@ export function generateVariantParams(
   }));
 }
 
-export function generatePossibleAssignments(applicableVariants: Set<Variant>) {
+export function generatePossibleAssignments(
+  applicableVariants: Set<VariantGetter>,
+) {
   let assignments: AssignedVariants[] = [{}];
   for (const variant of setToArray(applicableVariants)) {
     assignments = assignments.flatMap((assignment) =>
-      variant.variants.map((variantValue) => ({
+      getStaticVariants(variant).map((variantValue) => ({
         ...assignment,
-        [variant.id]: variantValue,
+        [getVariantId(variant)]: variantValue,
       })),
     );
   }
