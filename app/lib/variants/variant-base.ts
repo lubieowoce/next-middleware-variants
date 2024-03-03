@@ -29,7 +29,12 @@ export async function resolveVariantValueFromOptions(
       console.error(baseMessage + " Using fallback value\n", err);
       return fallback!;
     } else {
-      throw new Error(baseMessage, { cause: err });
+      console.error(baseMessage, err);
+      // We could do this:
+      //   throw new Error(baseMessage, { cause: err });
+      // but this is likely a static bailout error from next,
+      // and we don't wanna mess with that
+      throw err;
     }
   }
 }
