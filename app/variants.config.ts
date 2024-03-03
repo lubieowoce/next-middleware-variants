@@ -1,5 +1,5 @@
 import { type VariantMatcherConfig } from "@/app/lib/variants/matcher";
-import { createCookieVariant } from "./lib/cookie-variant-provider";
+import { createCookieVariant } from "./lib/cookie-variant-provider/server";
 
 export const colorVariant = createCookieVariant({
   id: "color",

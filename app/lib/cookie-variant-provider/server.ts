@@ -6,6 +6,11 @@ import {
   type AssignedVariants,
   createVariantProvider,
 } from "@/app/lib/variants";
+import {
+  COOKIE_NAME,
+  parseVariantsFromCookie,
+  serializeVariantsToCookie,
+} from "./shared";
 
 type RequestCookies = NextRequest["cookies"] | ReturnType<typeof cookies>;
 type ResponseCookies = NextResponse["cookies"] | ReturnType<typeof cookies>;
@@ -36,7 +41,6 @@ async function getRandomVariant<T>(choices: T[]) {
 
 type CookieVariantResolver = ReturnType<typeof createCookieVariantResolver>;
 
-const COOKIE_NAME = "assignedVariants";
 
 export function createCookieVariantResolver(getCookies: () => RequestCookies) {
   const getExisting = once(() => {
@@ -56,7 +60,10 @@ export function createCookieVariantResolver(getCookies: () => RequestCookies) {
     },
     persistAssignments(cookies: ResponseCookies) {
       const existing = getExisting();
-      const cookieValue = JSON.stringify({ ...existing, ...persist });
+      const cookieValue = serializeVariantsToCookie({
+        ...existing,
+        ...persist,
+      });
       // TODO: this won't work if we're resolving a variant during a page render...
       // in fact dynamic renders will probably make this crash altogether,
       // because the ALS won't be set up
@@ -85,11 +92,8 @@ export const cookieVariantResolverStorage =
   new AsyncLocalStorage<CookieVariantResolver>();
 
 function parseAssignedVariants(cookies: RequestCookies) {
-  const assignedVariantsRaw = cookies.get(COOKIE_NAME)?.value;
-  const previouslyAssignedVariants: AssignedVariants = assignedVariantsRaw
-    ? JSON.parse(assignedVariantsRaw)
-    : {};
-  return previouslyAssignedVariants;
+  const cookieValue = cookies.get(COOKIE_NAME)?.value;
+  return cookieValue ? parseVariantsFromCookie(cookieValue) : {};
 }
 
 function once<T extends {}>(create: () => T): () => T {

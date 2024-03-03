@@ -9,7 +9,7 @@ import { variantsProvider } from "./app/variants-provider";
 import {
   cookieVariantProvider,
   createCookieVariantResolver,
-} from "./app/lib/cookie-variant-provider";
+} from "./app/lib/cookie-variant-provider/server";
 
 const variantsMatcher = createVariantMatcher(variantsConfig);
 
