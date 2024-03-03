@@ -1,5 +1,3 @@
-import { renameFunction } from "./utils";
-
 export type VariantGetter<TVariantValue = string> =
   (() => Promise<TVariantValue>) & {
     __isVariant: true;
