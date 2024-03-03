@@ -1,4 +1,7 @@
-export const createRequestLocal = <T>({ deadlockTimeout = 10_000 } = {}) => {
+export const createRequestLocal = <T>({
+  skipOverwrite = false,
+  deadlockTimeout = 10_000,
+} = {}) => {
   const lazyGetter = lazyThunk(() => {
     const React = require("react") as typeof import("react");
     const { cache } = React;
@@ -35,7 +38,7 @@ export const createRequestLocal = <T>({ deadlockTimeout = 10_000 } = {}) => {
         },
         set: (value: T) => {
           if (didResolve) {
-            if (value !== resolvedValue!) {
+            if (value !== resolvedValue! && !skipOverwrite) {
               throw new Error(
                 `Attempted to set the value to ${value} after it was already set to ${resolvedValue}. This could lead to inconsistent results`,
               );
