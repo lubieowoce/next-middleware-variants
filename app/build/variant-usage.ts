@@ -68,7 +68,7 @@ function main() {
   //     specifier: "@/app/lib/variants",
   //     symbolName: `createVariant`,
   //   };
-  console.log(rootFiles);
+//   console.log(rootFiles);
   const compilerOptions = getCompilerOptions(dir);
   const languageService = createTsLanguageService(rootFiles, compilerOptions);
 
@@ -92,9 +92,6 @@ function main() {
       console.error(`Default export not found for file ${rootFile}`, err);
     }
   }
-  const pageForRootComponentSymbol = new Map<ts.Symbol, string>(
-    [...rootComponentSymbolsByPage.entries()].map(([k, v]) => [v, k]),
-  );
 
   function getDeclaration(symbol: ts.Symbol) {
     const declarations = symbol.getDeclarations();
@@ -177,15 +174,9 @@ function main() {
     }
   }
 
-  //   const resolvedFile = ts.resolveModuleName(
-  //     variantSource.specifier,
-  //     rootFiles[0],
-  //     compilerOptions,
-  //     ts.sys,
-  //   );
-  //   const resolvedFileName = resolvedFile.resolvedModule!.resolvedFileName;
+  const exportedVariantSymbols = new Set<ts.Symbol>();
   for (const resolvedFileName of variantFiles) {
-    console.log("variant file", resolvedFileName);
+    // console.log("variant file", resolvedFileName);
     if (!fs.existsSync(resolvedFileName)) {
       throw new Error(`Variant file does not exist: ${resolvedFileName}`);
     }
@@ -193,10 +184,10 @@ function main() {
       program.getSourceFile(resolvedFileName)!,
     )!;
     // console.log(resolvedFileName, sourceSymbol);
-    const exportedVariantSymbols = checker.getExportsOfModule(sourceSymbol);
+    const variantSymbols = checker.getExportsOfModule(sourceSymbol);
 
-    for (const variantSymbol of exportedVariantSymbols) {
-      console.log("variant", variantSymbol.getName());
+    for (const variantSymbol of variantSymbols) {
+      // console.log("variant", variantSymbol.getName());
 
       const declaration = getDeclaration(variantSymbol);
       //   console.log(declaration);
@@ -205,153 +196,150 @@ function main() {
           `Export ${variantSymbol.getName()} from ${path.relative(resolvedFileName, dir)} is not declared as a variable`,
         );
       }
+      exportedVariantSymbols.add(variantSymbol);
     }
+  }
 
-    const hasReferencesTo = new Map<ts.Symbol, Set<ts.Symbol>>();
+  const hasReferencesTo = new Map<ts.Symbol, Set<ts.Symbol>>();
+  function addLink<K, V>(links: Map<K, Set<V>>, source: K, target: V) {
+    let linkSet = links.get(source);
+    if (!linkSet) links.set(source, (linkSet = new Set()));
+    linkSet.add(target);
+  }
 
-    const queue = [...exportedVariantSymbols];
-    const visitedSymbols = new Set<ts.Symbol>();
-    while (queue.length) {
-      const variantSymbol = queue.shift()!;
-      if (visitedSymbols.has(variantSymbol)) {
+  const queue = [...exportedVariantSymbols];
+  const visitedSymbols = new Set<ts.Symbol>();
+  while (queue.length) {
+    const variantSymbol = queue.shift()!;
+    if (visitedSymbols.has(variantSymbol)) {
+      continue;
+    }
+    visitedSymbols.add(variantSymbol);
+    const declaration = getDeclaration(variantSymbol);
+    let nodeToReference: ts.Node;
+    try {
+      nodeToReference = getIdentifierFromDeclaration(declaration);
+    } catch (err) {
+      nodeToReference = declaration;
+    }
+    const variantNameLocation = {
+      fileName: declaration.getSourceFile().fileName,
+      pos: nodeToReference.pos,
+    };
+
+    // console.log("visiting", variantSymbol.getName(), "in", variantNameLocation);
+    // console.log("createVariant", declaration);
+    // console.log("=========================");
+
+    const references =
+      languageService.findReferences(
+        variantNameLocation.fileName,
+        variantNameLocation.pos,
+      ) ?? [];
+    const referencingSymbols = references
+      .flatMap((entry) => entry.references.filter((ref) => !ref.isDefinition))
+      .map((ref) => {
+        const astNode = getNodeForSpan(
+          program.getSourceFile(ref.fileName)!,
+          ref.textSpan,
+        )!;
+
+        let enclosing = getEnclosingTopLevelNode(astNode!);
+        if (ts.isImportDeclaration(enclosing)) {
+          // TODO: do we need any special handling here? maybe aliased imports?
+          return;
+        }
+        let enclosingSymbol: ts.Symbol | undefined;
+        try {
+          enclosingSymbol = getReferenceableSymbolForNode(enclosing);
+        } catch (err) {
+          console.error(err);
+          enclosingSymbol = undefined;
+        }
+
+        return { reference: ref, enclosingSymbol: enclosingSymbol };
+      });
+
+    //   console.log(referencingSymbols);
+    for (const reference of referencingSymbols) {
+      if (!reference) continue;
+      if (!reference.enclosingSymbol) {
+        const getText = (ref: ts.ReferenceEntry, span: ts.TextSpan) => {
+          return fs
+            .readFileSync(ref.fileName, "utf-8")
+            .slice(span.start, span.start + span.length);
+        };
+        console.error(
+          "Could not find enclosing symbol for reference",
+          reference.reference,
+          reference.reference.contextSpan
+            ? "\nin:\n  " +
+                getText(reference.reference, reference.reference.contextSpan)
+            : "",
+        );
         continue;
       }
-      visitedSymbols.add(variantSymbol);
-      const declaration = getDeclaration(variantSymbol);
-      let nodeToReference: ts.Node;
-      try {
-        nodeToReference = getIdentifierFromDeclaration(declaration);
-      } catch (err) {
-        nodeToReference = declaration;
+      if (reference.enclosingSymbol === variantSymbol) {
+        console.log("circular reference", variantSymbol.getName());
+        continue;
       }
-      const variantNameLocation = {
-        fileName: declaration.getSourceFile().fileName,
-        pos: nodeToReference.pos,
-      };
 
-      console.log(
-        "visiting",
-        variantSymbol.getName(),
-        "in",
-        variantNameLocation,
-      );
-      //   console.log("createVariant", declaration);
-      console.log("=========================");
-      const references =
-        languageService.findReferences(
-          variantNameLocation.fileName,
-          variantNameLocation.pos,
-        ) ?? [];
-      const referencingSymbols = references
-        .flatMap((entry) => entry.references.filter((ref) => !ref.isDefinition))
-        .map((ref) => {
-          const astNode = getNodeForSpan(
-            program.getSourceFile(ref.fileName)!,
-            ref.textSpan,
-          )!;
-
-          let enclosing = getEnclosingTopLevelNode(astNode!);
-          if (ts.isImportDeclaration(enclosing)) {
-            // TODO: do we need any special handling here? maybe aliased imports?
-            return;
-          }
-          let enclosingSymbol: ts.Symbol | undefined;
-          try {
-            enclosingSymbol = getReferenceableSymbolForNode(enclosing);
-          } catch (err) {
-            console.error(err);
-            enclosingSymbol = undefined;
-          }
-
-          return { reference: ref, enclosingSymbol: enclosingSymbol };
-        });
-      //   console.log(referencingSymbols);
-      for (const reference of referencingSymbols) {
-        if (!reference) continue;
-        if (!reference.enclosingSymbol) {
-          const getText = (ref: ts.ReferenceEntry, span: ts.TextSpan) => {
-            return fs
-              .readFileSync(ref.fileName, "utf-8")
-              .slice(span.start, span.start + span.length);
-          };
-          console.error(
-            "Could not find enclosing symbol for reference",
-            reference.reference,
-            reference.reference.contextSpan
-              ? "\nin:\n  " +
-                  getText(reference.reference, reference.reference.contextSpan)
-              : "",
-          );
-          continue;
-        }
-        if (reference.enclosingSymbol === variantSymbol) {
-          console.log("circular reference", variantSymbol.getName());
-          continue;
-        }
-
-        function addLink<K, V>(links: Map<K, Set<V>>, source: K, target: V) {
-          let linkSet = links.get(source);
-          if (!linkSet) links.set(source, (linkSet = new Set()));
-          linkSet.add(target);
-        }
-        // addLink(isReferencedBy, variantSymbol, reference.enclosingSymbol);
-        addLink(hasReferencesTo, reference.enclosingSymbol, variantSymbol);
-
-        queue.unshift(reference.enclosingSymbol);
-      }
+      addLink(hasReferencesTo, reference.enclosingSymbol, variantSymbol);
+      queue.unshift(reference.enclosingSymbol);
     }
+  }
 
-    function findVariantReferenceChains(source: ts.Symbol): ts.Symbol[][] {
-      if (exportedVariantSymbols.includes(source)) {
-        return [[source]];
+  function findVariantReferenceChains(source: ts.Symbol): ts.Symbol[][] {
+    if (exportedVariantSymbols.has(source)) {
+      return [[source]];
+    }
+    const references = hasReferencesTo.get(source);
+    if (!references) return [];
+    const childChains = [...references].flatMap((referenced) =>
+      findVariantReferenceChains(referenced),
+    );
+    return childChains.map((chain) => [source, ...chain]);
+  }
+
+  function findReferencedVariants(source: ts.Symbol): Set<ts.Symbol> {
+    function inner(source: ts.Symbol): ts.Symbol[] {
+      if (exportedVariantSymbols.has(source)) {
+        return [source];
       }
       const references = hasReferencesTo.get(source);
       if (!references) return [];
-      const childChains = [...references].flatMap((referenced) =>
-        findVariantReferenceChains(referenced),
-      );
-      return childChains.map((chain) => [source, ...chain]);
+      return [...references].flatMap((referenced) => inner(referenced));
     }
+    return new Set(inner(source));
+  }
 
-    function findReferencedVariants(source: ts.Symbol): Set<ts.Symbol> {
-      function inner(source: ts.Symbol): ts.Symbol[] {
-        if (exportedVariantSymbols.includes(source)) {
-          return [source];
-        }
-        const references = hasReferencesTo.get(source);
-        if (!references) return [];
-        return [...references].flatMap((referenced) => inner(referenced));
-      }
-      return new Set(inner(source));
-    }
+  console.log("Variants affecting pages\n");
 
-    console.log("Variants affecting pages\n");
-    for (const [pageFile, pageSymbol] of rootComponentSymbolsByPage.entries()) {
-      const chains = findVariantReferenceChains(pageSymbol);
-      //   const showChain = (chain: ts.Symbol[]) =>
-      //     chain.map(debugSymbol).join(" ->\n");
-      //   console.log(
-      //     chalk.bold(pageFile) + "\n" + chains.map(showChain).map((s) => s + "\n").join('\n'),
-      //   );
-      const referencedVariants = findReferencedVariants(pageSymbol);
-      console.log(
-        chalk.bold(path.relative(dir, pageFile)) +
-          ":\n" +
-          (referencedVariants.size === 0
-            ? ["(none)"]
-            : [...referencedVariants].flatMap((sym) => [
-                debugSymbol(sym),
-                ...chains
-                  .filter((ch) => ch.at(-1)! === sym)
-                  .map((ch) =>
-                    chalk.gray("  " + ch.map((s) => s.getName()).join(" -> ")),
-                  ),
-              ])
-          )
-            .map((line) => "  " + line + "\n")
-            .join(""),
-      );
-    }
+  for (const [pageFile, pageSymbol] of rootComponentSymbolsByPage.entries()) {
+    const chains = findVariantReferenceChains(pageSymbol);
+    //   const showChain = (chain: ts.Symbol[]) =>
+    //     chain.map(debugSymbol).join(" ->\n");
+    //   console.log(
+    //     chalk.bold(pageFile) + "\n" + chains.map(showChain).map((s) => s + "\n").join('\n'),
+    //   );
+    const referencedVariants = findReferencedVariants(pageSymbol);
+    console.log(
+      chalk.bold(path.relative(dir, pageFile)) +
+        ":\n" +
+        (referencedVariants.size === 0
+          ? ["(none)"]
+          : [...referencedVariants].flatMap((sym) => [
+              debugSymbol(sym),
+              ...chains
+                .filter((ch) => ch.at(-1)! === sym)
+                .map((ch) =>
+                  chalk.gray("  " + ch.map((s) => s.getName()).join(" -> ")),
+                ),
+            ])
+        )
+          .map((line) => "  " + line + "\n")
+          .join(""),
+    );
   }
 }
 
