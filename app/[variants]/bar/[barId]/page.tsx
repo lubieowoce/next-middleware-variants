@@ -2,14 +2,12 @@ import Link from "next/link";
 import { withVariants } from "@/app/variants-provider";
 import { generateVariantParams } from "@/app/lib/variants/static";
 
-import { fontVariant, colorVariant } from "@/app/variants";
+// import { colorVariant } from "@/app/variants";
 import { VariantsDebug } from "@/app/variants-debug";
 import { ShowColorVariant } from "./uses-variant";
 
 export const dynamic = "error";
 export const dynamicParams = true;
-
-const DYNAMIC_ERROR_ON_PURPOSE = false;
 
 export async function generateStaticParams(): Promise<Partial<Params>[]> {
   const { default: config } = await import("@/app/variants.config");
@@ -27,12 +25,18 @@ type Params = {
 
 async function Bar({ params }: { params: Params }) {
   return (
-    <main style={{ fontFamily: await fontVariant() }}>
+    <main
+      style={
+        {
+          /* fontFamily: await fontVariant() */
+        }
+      }
+    >
       <div>
         <h1
           style={{
             fontSize: "24px",
-            color: DYNAMIC_ERROR_ON_PURPOSE ? await colorVariant() : undefined,
+            // color: await colorVariant(),
           }}
         >
           Bar ({params.barId})!
