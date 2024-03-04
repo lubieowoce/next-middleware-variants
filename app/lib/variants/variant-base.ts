@@ -16,16 +16,20 @@ export type VariantOptions<TVariantValue> = {
 
 export async function resolveVariantValueFromOptions(
   options: VariantOptions<_TVariantValue>,
+  context?: "render" | "middleware",
 ) {
   const { id, fallback, resolve } = options;
-  const hasFallback = "fallback" in options;
   try {
     return await resolve();
   } catch (err) {
-    const baseMessage = `An error occurred while resolving value for variant '${id}'.`;
-    if (hasFallback) {
-      console.error(baseMessage + " Using fallback value\n", err);
-      return fallback!;
+    const contextDescription =
+      (context
+        ? { render: "during render", middleware: "in middleware" }[context]
+        : undefined) ?? "";
+    const baseMessage = `An error occurred while resolving value for variant '${id}'${contextDescription ? " " + contextDescription : ""}.`;
+    if (fallback !== undefined) {
+      console.error(baseMessage + ` Using fallback value ${fallback}\n`, err);
+      return fallback;
     } else {
       console.error(baseMessage, err);
       // We could do this:
@@ -73,5 +77,5 @@ export function getVariantId(getter: VariantGetter<_TVariantValue>) {
 
 export function resolveVariant(getter: VariantGetter<_TVariantValue>) {
   const options = getVariantOptions(getter);
-  return resolveVariantValueFromOptions(options);
+  return resolveVariantValueFromOptions(options, 'middleware');
 }

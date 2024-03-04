@@ -1,5 +1,5 @@
 import { getVariants } from "@/app/lib/variants";
-import { ResetVariants } from "./reset-variants";
+import { ResetCookie } from "./reset-cookie";
 
 export async function VariantsDebug() {
   // if (process.env.NODE_ENV !== "development") {
@@ -27,7 +27,8 @@ export async function VariantsDebug() {
             {i !== arr.length - 1 && ","}
           </div>
         ))}
-        <ResetVariants />
+        <ResetCookie name="assignedVariants">Reset cookie variants</ResetCookie>
+        <ResetCookie name="user_id">Reset user ID</ResetCookie>
       </div>
     </div>
   );

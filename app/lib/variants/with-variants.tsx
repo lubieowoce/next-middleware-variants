@@ -9,8 +9,6 @@ import {
 } from "./variant-provider";
 import { lazyCache } from "./lazy-cache";
 
-export type ProviderFactory<T> = () => T;
-
 export function createVariantsWrapper({
   dynamicProviders,
 }: {
@@ -51,6 +49,8 @@ export function createVariantsWrapper({
     },
   };
 }
+
+export function pair<T>(...args: ProviderAndImpl<T>) { return args }
 
 type ProviderAndImpl<T> = [
   provider: VariantProvider<T>,

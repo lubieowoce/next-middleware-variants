@@ -9,24 +9,48 @@ import { variantsProvider } from "./app/variants-provider";
 import {
   cookieVariantProvider,
   createCookieVariantResolver,
-} from "./app/lib/cookie-variant-provider/server";
+} from "@/app/lib/cookie-variant-provider/server";
+import {
+  experimentVariantProvider,
+  createExperimentVariantResolver,
+} from "@/app/lib/experiment-provider/server";
+import { getGlobalExperimentClient } from "@/app/lib/experiment-provider/global-experiment-client";
+import { withUserId, getUserId } from "@/app/lib/user-id";
 
 const variantsMatcher = createVariantMatcher(variantsConfig);
 
-export async function middleware(request: NextRequest) {
+export async function middleware(
+  request: NextRequest,
+): Promise<NextResponse | undefined> {
+  const noopMiddleware = async () => undefined;
+  return withUserId(request, () => withVariants(request, noopMiddleware));
+}
+
+async function withVariants(
+  request: NextRequest,
+  next: () => Promise<NextResponse | undefined>,
+): Promise<NextResponse | undefined> {
   // console.log("middleware :: nextUrl", request.nextUrl.pathname);
 
   const applicableVariants = variantsMatcher(request.nextUrl);
   if (request.nextUrl.pathname.match(VARIANTS_PATH_SEGMENT)) {
     // console.log("middleware :: already rewritten");
-    return;
+    return next();
   }
 
-  const cookieVariantResolver = createCookieVariantResolver(
-    () => request.cookies,
-  );
+  const cookieVariantResolver = createCookieVariantResolver({
+    getCookies: () => request.cookies,
+    canPersist: true,
+  });
+
   const variantsParam = await variantsProvider.runWithProviders(
-    [[cookieVariantProvider, () => cookieVariantResolver]],
+    [
+      [cookieVariantProvider, () => cookieVariantResolver],
+      [
+        experimentVariantProvider,
+        () => createExperimentVariantResolver(getGlobalExperimentClient()),
+      ],
+    ],
     () => resolveVariantsIntoParam(applicableVariants),
   );
 

@@ -41,8 +41,13 @@ async function getRandomVariant<T>(choices: T[]) {
 
 type CookieVariantResolver = ReturnType<typeof createCookieVariantResolver>;
 
-
-export function createCookieVariantResolver(getCookies: () => RequestCookies) {
+export function createCookieVariantResolver({
+  canPersist,
+  getCookies,
+}: {
+  getCookies: () => RequestCookies;
+  canPersist: boolean;
+}) {
   const getExisting = once(() => {
     const cookies = getCookies();
     return parseAssignedVariants(cookies);
@@ -75,6 +80,13 @@ export function createCookieVariantResolver(getCookies: () => RequestCookies) {
       let variantValue: string;
       const existing = getExisting();
       if (!(id in existing)) {
+        if (!canPersist) {
+          throw new Error([
+            `CookieVariantProvider :: A New cookie variant ('${id}') needs to be assigned, but it cannot be persisted.`,
+            'This is probably because it was accessed during a dynamic render.',
+            'To fix this, read it in middleware.'
+          ].join(' '))
+        }
         variantValue = await getRandomVariant(variants);
         if (persist === null) {
           persist = {};

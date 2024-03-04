@@ -17,7 +17,7 @@ export async function getVariantProvider<T>(
   const providers =
     variantProvidersStorage.getStore() ?? (await variantProvidersLocal().get());
   if (!(provider.id in providers)) {
-    throw new Error(`Missing provider with id ${provider.id}`);
+    throw new Error(`Missing provider with id '${provider.id}'`);
   }
   return providers[provider.id]() as T;
 }

@@ -24,7 +24,9 @@ export function createVariant(
       const variantsFromParams = await getVariants();
       if (!(id in variantsFromParams)) {
         // TODO: reading works fine, but what if a provider needs to write?
-        return resolveVariantValueFromOptions(options);
+        // TODO 2: it'd be good if providers could diagnose whether something works accidentally
+        // (e.g. because we set the cookie before by a different page) and will fail otherwise.
+        return resolveVariantValueFromOptions(options, "render");
       }
       return variantsFromParams[id];
     });
