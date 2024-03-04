@@ -2,7 +2,7 @@ import Link from "next/link";
 import { withVariants } from "@/app/variants-provider";
 
 import { VariantsDebug } from "@/app/variants-debug";
-import { colorVariant, fontVariant } from "@/app/variants.config";
+import { colorVariant, fontVariant } from "@/app/variants";
 
 export const dynamic = "force-dynamic";
 

@@ -3,7 +3,7 @@ import { withVariants } from "@/app/variants-provider";
 import { generateVariantParams } from "@/app/lib/variants/static";
 
 import { VariantsDebug } from "@/app/variants-debug";
-import { colorVariant, fontVariant } from "@/app/variants.config";
+import { colorVariant, fontVariant } from "@/app/variants";
 
 export async function generateStaticParams(): Promise<Params[]> {
   const { default: config } = await import("@/app/variants.config");

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { withVariants } from "@/app/variants-provider";
 
-import { colorVariant } from "@/app/variants.config";
+import { colorVariant } from "@/app/variants";
 import { VariantsDebug } from "../variants-debug";
 
 export const dynamic = "error";

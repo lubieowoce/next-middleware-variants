@@ -2,8 +2,9 @@ import Link from "next/link";
 import { withVariants } from "@/app/variants-provider";
 import { generateVariantParams } from "@/app/lib/variants/static";
 
-import { fontVariant, colorVariant } from "@/app/variants.config";
+import { fontVariant, colorVariant } from "@/app/variants";
 import { VariantsDebug } from "@/app/variants-debug";
+import { ShowColorVariant } from "./uses-variant";
 
 export const dynamic = "error";
 export const dynamicParams = true;
@@ -24,7 +25,7 @@ type Params = {
   [param: string]: string;
 };
 
-async function Foo({ params }: { params: Params }) {
+async function Bar({ params }: { params: Params }) {
   return (
     <main style={{ fontFamily: await fontVariant() }}>
       <div>
@@ -37,6 +38,7 @@ async function Foo({ params }: { params: Params }) {
           Bar ({params.barId})!
         </h1>
         <VariantsDebug />
+        <ShowColorVariant />
         <br />
       </div>
 
@@ -48,4 +50,4 @@ async function Foo({ params }: { params: Params }) {
   );
 }
 
-export default withVariants(Foo);
+export default withVariants(Bar);
