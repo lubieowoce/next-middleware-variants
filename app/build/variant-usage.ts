@@ -54,26 +54,31 @@ function getCompilerOptions(targetDir: string) {
 
 function main() {
   const dir = process.cwd();
-  const rootFiles = globSync(
-    ["app/**/{layout,template,page}.{js,jsx,ts,tsx}"],
-    {
-      cwd: dir,
-      ignore: "node_modules/**",
-      absolute: true,
-    },
-  );
+  const appDir = path.join(dir, "app"); // TODO: handle src/
+
+  const rootFiles = globSync(["**/{layout,template,page}.{js,jsx,ts,tsx}"], {
+    cwd: appDir,
+    ignore: "node_modules/**",
+    absolute: true,
+    nodir: true,
+  })
+    .sort()
+    .reverse();
+
+  const variantsPackageRootSpecifier = "@/app/lib/variants";
+
   // TODO: auto-discovery via "use variant"
-  const variantFiles = [path.resolve(dir, "app/variants.ts")];
-  //   const variantSource = {
-  //     specifier: "@/app/lib/variants",
-  //     symbolName: `createVariant`,
-  //   };
-//   console.log(rootFiles);
+  const variantFiles = [path.resolve(appDir, "variants.ts")];
+
   const compilerOptions = getCompilerOptions(dir);
   const languageService = createTsLanguageService(rootFiles, compilerOptions);
 
   const program = languageService.getProgram()!;
   const checker = program.getTypeChecker();
+
+  //=================================================
+  // Find all page/layout files
+  //=================================================
 
   const rootComponentSymbolsByPage = new Map<string, ts.Symbol>();
   for (const rootFile of rootFiles) {
@@ -93,104 +98,29 @@ function main() {
     }
   }
 
-  function getDeclaration(symbol: ts.Symbol) {
-    const declarations = symbol.getDeclarations();
-    if (!declarations || declarations.length === 0) {
-      throw new Error(`No declarations found for ${symbol.getName()}`);
-    }
-    return declarations[0];
-  }
-
-  function debugSymbol(sym: ts.Symbol, { id = false } = {}) {
-    const name = sym.getName();
-    return `${name}${id ? "[" + (sym as any)["id"] + "]" : ""} ${chalk.grey(`(${path.relative(dir, getDeclaration(sym).getSourceFile().fileName)})`)}`;
-  }
-
-  function getIdentifierFromDeclaration(
-    node: ts.Node,
-  ): ts.Identifier | ts.BindingName {
-    if (ts.isFunctionDeclaration(node)) {
-      if (!node.name) {
-        throw new Error("Not implemented: anonymous functions");
-      }
-      return node.name!;
-    } else if (ts.isVariableDeclaration(node)) {
-      return node.name;
-    } else if (ts.isExportAssignment(node)) {
-      const exportName = node.name;
-      if (!exportName) {
-        // default export;
-        return getIdentifierFromDeclaration(node.expression);
-      } else {
-        if (!ts.isIdentifier(exportName)) {
-          throw new Error(
-            `Not implemented: this weird kind of export name: ${exportName ? ts.SyntaxKind[exportName.kind] : undefined}`,
-          );
-        } else {
-          return exportName;
-        }
-      }
-    } else {
-      throw new Error(
-        `Not implemented: whatever syntax this is (${ts.SyntaxKind[node.kind]}):\n` +
-          node.getFullText(),
-      );
-    }
-  }
-
-  function getReferenceableSymbolForNode(node: ts.Node) {
-    if (ts.isFunctionDeclaration(node)) {
-      if (!node.name) {
-        throw new Error("Not implemented: anonymous functions");
-      }
-      return checker.getSymbolAtLocation(node.name);
-    } else if (ts.isVariableDeclaration(node)) {
-      return checker.getSymbolAtLocation(node.name);
-    } else if (ts.isExportAssignment(node)) {
-      const exportName = node.name;
-      if (!exportName) {
-        // default export;
-        const defaultExportSymbol = checker
-          .getExportsOfModule(
-            checker.getSymbolAtLocation(node.getSourceFile())!,
-          )
-          .find((sym) => sym.getName() === "default");
-        //   console.log("defaultExportSymbol", defaultExportSymbol);
-        return defaultExportSymbol;
-      } else {
-        if (!ts.isIdentifier(exportName)) {
-          throw new Error(
-            `Not implemented: this weird kind of export name: ${exportName ? ts.SyntaxKind[exportName.kind] : undefined}`,
-          );
-        } else {
-          return checker.getSymbolAtLocation(exportName);
-        }
-      }
-    } else {
-      throw new Error(
-        `Not implemented: whatever syntax this is (${ts.SyntaxKind[node.kind]}):\n` +
-          node.getFullText(),
-      );
-    }
-  }
+  //=================================================
+  // Find all variants
+  //=================================================
 
   const exportedVariantSymbols = new Set<ts.Symbol>();
   for (const resolvedFileName of variantFiles) {
-    // console.log("variant file", resolvedFileName);
     if (!fs.existsSync(resolvedFileName)) {
       throw new Error(`Variant file does not exist: ${resolvedFileName}`);
     }
     const sourceSymbol = checker.getSymbolAtLocation(
       program.getSourceFile(resolvedFileName)!,
     )!;
-    // console.log(resolvedFileName, sourceSymbol);
+
     const variantSymbols = checker.getExportsOfModule(sourceSymbol);
 
     for (const variantSymbol of variantSymbols) {
-      // console.log("variant", variantSymbol.getName());
+      if (variantSymbol.getName() === "default") {
+        throw new Error(
+          `Default exports from variant files are not supported (at ${resolvedFileName})`,
+        );
+      }
 
       const declaration = getDeclaration(variantSymbol);
-      //   console.log(declaration);
       if (!ts.isVariableDeclaration(declaration)) {
         throw new Error(
           `Export ${variantSymbol.getName()} from ${path.relative(resolvedFileName, dir)} is not declared as a variable`,
@@ -200,6 +130,10 @@ function main() {
     }
   }
 
+  //=================================================
+  // Find all transitive references to variants
+  //=================================================
+
   const hasReferencesTo = new Map<ts.Symbol, Set<ts.Symbol>>();
   function addLink<K, V>(links: Map<K, Set<V>>, source: K, target: V) {
     let linkSet = links.get(source);
@@ -207,15 +141,16 @@ function main() {
     linkSet.add(target);
   }
 
-  const queue = [...exportedVariantSymbols];
+  const symbolsToVisit = [...exportedVariantSymbols];
   const visitedSymbols = new Set<ts.Symbol>();
-  while (queue.length) {
-    const variantSymbol = queue.shift()!;
-    if (visitedSymbols.has(variantSymbol)) {
+
+  while (symbolsToVisit.length) {
+    const currentSymbol = symbolsToVisit.shift()!;
+    if (visitedSymbols.has(currentSymbol)) {
       continue;
     }
-    visitedSymbols.add(variantSymbol);
-    const declaration = getDeclaration(variantSymbol);
+    visitedSymbols.add(currentSymbol);
+    const declaration = getDeclaration(currentSymbol);
     let nodeToReference: ts.Node;
     try {
       nodeToReference = getIdentifierFromDeclaration(declaration);
@@ -226,10 +161,6 @@ function main() {
       fileName: declaration.getSourceFile().fileName,
       pos: nodeToReference.pos,
     };
-
-    // console.log("visiting", variantSymbol.getName(), "in", variantNameLocation);
-    // console.log("createVariant", declaration);
-    // console.log("=========================");
 
     const references =
       languageService.findReferences(
@@ -247,11 +178,15 @@ function main() {
         let enclosing = getEnclosingTopLevelNode(astNode!);
         if (ts.isImportDeclaration(enclosing)) {
           // TODO: do we need any special handling here? maybe aliased imports?
+          // findReferences seems to handle aliasing just fine, so maybe not
+          // if we do, we'd have to look through the importClause and look for aliases.
+          // possibly pass a second arg to `getIdentifierFromDeclaration`/`getReferenceableSymbolForNode`
+          // so that they can know what it's looking for.
           return;
         }
         let enclosingSymbol: ts.Symbol | undefined;
         try {
-          enclosingSymbol = getReferenceableSymbolForNode(enclosing);
+          enclosingSymbol = getReferenceableSymbolForNode(enclosing, checker);
         } catch (err) {
           console.error(err);
           enclosingSymbol = undefined;
@@ -260,7 +195,6 @@ function main() {
         return { reference: ref, enclosingSymbol: enclosingSymbol };
       });
 
-    //   console.log(referencingSymbols);
     for (const reference of referencingSymbols) {
       if (!reference) continue;
       if (!reference.enclosingSymbol) {
@@ -279,15 +213,20 @@ function main() {
         );
         continue;
       }
-      if (reference.enclosingSymbol === variantSymbol) {
-        console.log("circular reference", variantSymbol.getName());
+      if (reference.enclosingSymbol === currentSymbol) {
+        console.log(
+          "Warning: Circular reference:",
+          debugSymbol(currentSymbol, { rootDir: dir }),
+        );
         continue;
       }
 
-      addLink(hasReferencesTo, reference.enclosingSymbol, variantSymbol);
-      queue.unshift(reference.enclosingSymbol);
+      addLink(hasReferencesTo, reference.enclosingSymbol, currentSymbol);
+      symbolsToVisit.unshift(reference.enclosingSymbol);
     }
   }
+
+  //=================================================
 
   function findVariantReferenceChains(source: ts.Symbol): ts.Symbol[][] {
     if (exportedVariantSymbols.has(source)) {
@@ -302,45 +241,209 @@ function main() {
   }
 
   function findReferencedVariants(source: ts.Symbol): Set<ts.Symbol> {
-    function inner(source: ts.Symbol): ts.Symbol[] {
+    function findReferencedVariantsImpl(source: ts.Symbol): ts.Symbol[] {
       if (exportedVariantSymbols.has(source)) {
         return [source];
       }
       const references = hasReferencesTo.get(source);
       if (!references) return [];
-      return [...references].flatMap((referenced) => inner(referenced));
+      return [...references].flatMap((referenced) =>
+        findReferencedVariantsImpl(referenced),
+      );
     }
-    return new Set(inner(source));
+    return new Set(findReferencedVariantsImpl(source));
   }
 
-  console.log("Variants affecting pages\n");
+  //=================================================
+  // Print build info
+  //=================================================
 
-  for (const [pageFile, pageSymbol] of rootComponentSymbolsByPage.entries()) {
-    const chains = findVariantReferenceChains(pageSymbol);
-    //   const showChain = (chain: ts.Symbol[]) =>
-    //     chain.map(debugSymbol).join(" ->\n");
-    //   console.log(
-    //     chalk.bold(pageFile) + "\n" + chains.map(showChain).map((s) => s + "\n").join('\n'),
-    //   );
-    const referencedVariants = findReferencedVariants(pageSymbol);
-    console.log(
-      chalk.bold(path.relative(dir, pageFile)) +
-        ":\n" +
-        (referencedVariants.size === 0
-          ? ["(none)"]
-          : [...referencedVariants].flatMap((sym) => [
-              debugSymbol(sym),
-              ...chains
-                .filter((ch) => ch.at(-1)! === sym)
-                .map((ch) =>
-                  chalk.gray("  " + ch.map((s) => s.getName()).join(" -> ")),
-                ),
-            ])
-        )
-          .map((line) => "  " + line + "\n")
-          .join(""),
+  {
+    console.log("Variants affecting segments\n");
+
+    for (const [pageFile, pageSymbol] of rootComponentSymbolsByPage.entries()) {
+      const chains = findVariantReferenceChains(pageSymbol);
+      const showChain = (chain: ts.Symbol[]) =>
+        chain.map((sym) => sym.getName()).join(" -> ");
+
+      const referencedVariants = findReferencedVariants(pageSymbol);
+
+      let segmentIdLine = chalk.bold(path.relative(dir, pageFile)) + ":";
+      if (referencedVariants.size === 0) {
+        segmentIdLine = chalk.gray(segmentIdLine);
+      }
+
+      console.log(
+        unlines([
+          segmentIdLine,
+          ...indentEach(
+            referencedVariants.size === 0
+              ? [chalk.gray("(none)")]
+              : [...referencedVariants].flatMap((sym) => [
+                  debugSymbol(sym, { rootDir: dir }),
+                  ...indentEach(
+                    chains
+                      .filter((ch) => ch.at(-1)! === sym)
+                      .map((ch) => chalk.gray(showChain(ch))),
+                  ),
+                ]),
+          ),
+        ]) + "\n",
+      );
+    }
+  }
+
+  //=================================================
+  // Generate config file
+  //=================================================
+
+  {
+    const generatedConfigDir = path.join(appDir, ".variants");
+    const generatedConfigFile = path.join(
+      generatedConfigDir,
+      "config.generated.js",
+    );
+
+    let curId = 0;
+    const getId = () => curId++;
+    const imports: string[] = [];
+    const identifiers = new Map<ts.Symbol, string>();
+
+    const start = [
+      "// THIS IS AN AUTOGENERATED FILE. DO NOT EDIT IT MANUALLY.",
+      "",
+      `/** @type {import('${variantsPackageRootSpecifier}/matcher').VariantMatcherConfig} */`,
+      "export default {",
+      "  patterns: [",
+    ];
+    const end = ["  ],", "};"];
+    const code = [...start];
+
+    for (const [pageFile, pageSymbol] of rootComponentSymbolsByPage.entries()) {
+      // TODO: inheritance from layouts?
+      const referencedVariants = findReferencedVariants(pageSymbol);
+      if (referencedVariants.size === 0) {
+        continue;
+      }
+
+      const pagePathPattern =
+        "/" +
+        path
+          .relative(appDir, pageFile)
+          .replace(/^\[variants\]\//, "")
+          .replace(/(\/|^)(layout|template|page)\.(js|jsx|ts|tsx)$/, "")
+          .split("/")
+          .map((segment) =>
+            segment.replace(/\[([^\]]+)\]/, (_, param) => ":" + param),
+          )
+          .join("/");
+
+      const affectingVariantIdentifiers: string[] = [];
+
+      for (const variantSym of referencedVariants.values()) {
+        if (!identifiers.has(variantSym)) {
+          const importedAs = variantSym.getName() + getId();
+          identifiers.set(variantSym, importedAs);
+          const source = path.relative(
+            generatedConfigDir,
+            getDeclaration(variantSym).getSourceFile().fileName,
+          );
+          imports.push(
+            `import { ${variantSym.getName()} as ${importedAs} } from '${source}';`,
+          );
+        }
+        const importedAs = identifiers.get(variantSym)!;
+        affectingVariantIdentifiers.push(importedAs);
+      }
+      code.push(
+        "    " +
+          `[{ pathname: "${pagePathPattern}" }, [${affectingVariantIdentifiers.join(", ")}]],`,
+      );
+    }
+
+    code.push(...end);
+
+    code.unshift(...imports, "");
+
+    const finalCode = unlines(code);
+    if (!fs.existsSync(generatedConfigDir)) {
+      fs.mkdirSync(generatedConfigDir);
+    }
+    fs.writeFileSync(generatedConfigFile, finalCode);
+    fs.writeFileSync(path.join(generatedConfigDir, ".gitignore"), "*\n");
+  }
+}
+
+function getDeclaration(symbol: ts.Symbol) {
+  const declarations = symbol.getDeclarations();
+  if (!declarations || declarations.length === 0) {
+    throw new Error(`No declarations found for ${symbol.getName()}`);
+  }
+  return declarations[0];
+}
+
+function debugSymbol(
+  sym: ts.Symbol,
+  { id = false, rootDir }: { rootDir: string; id?: boolean },
+) {
+  const name = sym.getName();
+  const declaration = getDeclaration(sym);
+  const fileName = declaration.getSourceFile().fileName;
+  return `${name}${id ? "[" + (sym as any)["id"] + "]" : ""} ${chalk.grey(`(${path.relative(rootDir, fileName)})`)}`;
+}
+
+function getIdentifierFromDeclaration(
+  node: ts.Node,
+): ts.Identifier | ts.BindingName {
+  if (ts.isFunctionDeclaration(node)) {
+    if (!node.name) {
+      throw new Error("Not implemented: anonymous functions");
+    }
+    return node.name!;
+  } else if (ts.isVariableDeclaration(node)) {
+    return node.name;
+  } else if (ts.isExportAssignment(node)) {
+    const exportName = node.name;
+    if (!exportName) {
+      // default export;
+      return getIdentifierFromDeclaration(node.expression);
+    } else {
+      if (!ts.isIdentifier(exportName)) {
+        throw new Error(
+          `Not implemented: this weird kind of export name: ${exportName ? ts.SyntaxKind[exportName.kind] : undefined}`,
+        );
+      } else {
+        return exportName;
+      }
+    }
+  } else {
+    throw new Error(
+      `Not implemented: whatever syntax this is (${ts.SyntaxKind[node.kind]}):\n` +
+        node.getFullText(),
     );
   }
+}
+
+function getReferenceableSymbolForNode(node: ts.Node, checker: ts.TypeChecker) {
+  if (ts.isExportAssignment(node)) {
+    const exportName = node.name;
+    if (!exportName) {
+      // default export;
+      const defaultExportSymbol = checker
+        .getExportsOfModule(checker.getSymbolAtLocation(node.getSourceFile())!)
+        .find((sym) => sym.getName() === "default");
+      //   console.log("defaultExportSymbol", defaultExportSymbol);
+      return defaultExportSymbol;
+    }
+  }
+  const ident = getIdentifierFromDeclaration(node);
+  const sym = checker.getSymbolAtLocation(ident);
+  if (!sym) {
+    throw new Error(
+      `Could not get symbol for node: ${ident.getFullText()} at ${ident.getSourceFile().fileName}`,
+    );
+  }
+  return sym;
 }
 
 function getNodeForSpan(
@@ -365,6 +468,14 @@ function getEnclosingTopLevelNode(node: ts.Node) {
     current = current.parent;
   }
   return current;
+}
+
+function indentEach(lines: string[], level: number = 1, indent = "  ") {
+  return lines.map((line) => indent.repeat(level) + line);
+}
+
+function unlines(lines: string[]) {
+  return lines.join("\n");
 }
 
 main();
