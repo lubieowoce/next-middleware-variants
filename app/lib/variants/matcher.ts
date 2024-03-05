@@ -6,6 +6,7 @@ import {
   leafComponentKeys,
   allComponentKeys,
   isGroupSegment,
+  wrapperComponentKeys,
 } from "./build/routing";
 
 export type URLPatternInput = ConstructorParameters<typeof URLPattern>[0];
@@ -67,7 +68,7 @@ function createRouteMatcher(config: VariantMatcherConfig) {
     const matchImpl = (
       segments: string[],
       tree: RouteTreeWithVariants,
-    ): VariantGetter[] | undefined => {
+    ): VariantGetter[] => {
       const [segmentToMatch, ...rest] = segments;
       const { dynamic, children } = tree;
       if (!dynamic) {
@@ -79,7 +80,7 @@ function createRouteMatcher(config: VariantMatcherConfig) {
           throw new NotFoundError();
         }
         if (segmentToMatch === "__PAGE__" && rest.length === 0) {
-          return tree.variants?.page;
+          return tree.variants?.page ?? NO_VARIANTS;
         }
         if (!children) {
           throw new NotFoundError();
@@ -111,11 +112,13 @@ function createRouteMatcher(config: VariantMatcherConfig) {
     ) => {
       for (const child of children) {
         try {
+          // TODO: actually handle not-found/error and default
+          // TODO: what do we even do for error? we don't know if it'll happen at this point...
           const fromChild = matchImpl(segments, child);
-          const ownVariants = componentKeys.flatMap(
+          const ownVariants = wrapperComponentKeys.flatMap(
             (componentKey) => tree.variants?.[componentKey] ?? NO_VARIANTS,
           );
-          return [...ownVariants, ...(fromChild ?? NO_VARIANTS)];
+          return fromChild ? [...ownVariants, ...fromChild] : ownVariants;
         } catch (err) {
           if (err instanceof NotFoundError) {
             continue;
@@ -123,8 +126,10 @@ function createRouteMatcher(config: VariantMatcherConfig) {
           throw err;
         }
       }
+      throw new NotFoundError();
     };
 
+    // TODO: what if a NotFoundError bubbles up to here?
     return new Set(matchImpl(segments, config.routes!) ?? NO_VARIANTS);
   };
 }

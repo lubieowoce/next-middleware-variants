@@ -2,13 +2,17 @@
 //   require("node:util").inspect(fileTree, { depth: undefined, colors: true }),
 // );
 
+export const wrapperComponentKeys = ["layout", "template"];
+
+export const errorComponentKeys = ["error", "notFound"] as const;
+
 export const componentKeys = [
-  "layout",
-  "template",
-  "error",
-  "notFound",
+  ...wrapperComponentKeys,
+  ...errorComponentKeys,
 ] as const;
+
 export const leafComponentKeys = ["page", "default"] as const;
+
 export const allComponentKeys = [
   ...componentKeys,
   ...leafComponentKeys,
