@@ -259,7 +259,7 @@ function main() {
   //=================================================
 
   {
-    console.log("Variants affecting segments\n");
+    console.log(chalk.bold("Variants affecting segments:") + "\n");
 
     for (const [pageFile, pageSymbol] of rootComponentSymbolsByPage.entries()) {
       const chains = findVariantReferenceChains(pageSymbol);
@@ -268,27 +268,29 @@ function main() {
 
       const referencedVariants = findReferencedVariants(pageSymbol);
 
-      let segmentIdLine = chalk.bold(path.relative(dir, pageFile)) + ":";
+      let segmentIdLine = chalk.bold("■ " + path.relative(dir, pageFile)) + ":";
       if (referencedVariants.size === 0) {
         segmentIdLine = chalk.gray(segmentIdLine);
       }
 
       console.log(
-        unlines([
-          segmentIdLine,
-          ...indentEach(
-            referencedVariants.size === 0
-              ? [chalk.gray("(none)")]
-              : [...referencedVariants].flatMap((sym) => [
-                  debugSymbol(sym, { rootDir: dir }),
-                  ...indentEach(
-                    chains
-                      .filter((ch) => ch.at(-1)! === sym)
-                      .map((ch) => chalk.gray(showChain(ch))),
-                  ),
-                ]),
-          ),
-        ]) + "\n",
+        unlines(
+          indentEach([
+            segmentIdLine,
+            ...indentEach(
+              referencedVariants.size === 0
+                ? [chalk.gray("(none)")]
+                : [...referencedVariants].flatMap((sym) => [
+                    debugSymbol(sym, { rootDir: dir }),
+                    ...indentEach(
+                      chains
+                        .filter((ch) => ch.at(-1)! === sym)
+                        .map((ch) => chalk.gray(showChain(ch))),
+                    ),
+                  ]),
+            ),
+          ]),
+        ) + "\n",
       );
     }
   }
