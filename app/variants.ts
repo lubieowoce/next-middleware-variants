@@ -11,3 +11,8 @@ export const fontVariant = createCookieVariant({
   id: "font",
   variants: ["sans-serif", "Georgia"],
 });
+
+export const whateverVariant = createExperimentVariant({
+  id: "789012",
+  variants: ["yes", "no"],
+});

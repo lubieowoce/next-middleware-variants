@@ -2,6 +2,7 @@ import { PropsWithChildren } from "react";
 import { withVariants } from "@/app/variants-provider";
 // import { VariantsDebug } from "@/app/variants-debug";
 import { generateVariantParams } from "@/app/lib/variants/static";
+import { whateverVariant } from "@/app/variants";
 
 export const dynamicParams = true;
 
@@ -15,9 +16,19 @@ type Params = {
   [param: string]: string;
 };
 
-function Layout({ params, children }: PropsWithChildren<{ params: Params }>) {
+async function Layout({
+  params,
+  children,
+}: PropsWithChildren<{ params: Params }>) {
+  const isActive = (await whateverVariant()) === "yes" ? true : false;
   return (
     <>
+      {isActive && (
+        <div>
+          <code>whateverVariant</code> is active, so the root layout will show
+          some stuff!
+        </div>
+      )}
       {/* <VariantsDebug /><br /> */}
       {children}
     </>

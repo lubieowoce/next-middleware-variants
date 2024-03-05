@@ -322,23 +322,37 @@ function main() {
     const code = [...start];
 
     for (const [pageFile, pageSymbol] of rootComponentSymbolsByPage.entries()) {
-      // TODO: inheritance from layouts?
+      // TODO: better inheritance from layouts? this is very hacky
+      const affectsChildren = /(\/|^)(layout|template)\.(js|jsx|ts|tsx)$/.test(
+        pageFile,
+      );
+
       const referencedVariants = findReferencedVariants(pageSymbol);
       if (referencedVariants.size === 0) {
         continue;
       }
 
-      const pagePathPattern =
-        "/" +
-        path
-          .relative(appDir, pageFile)
-          .replace(/^\[variants\]\//, "")
-          .replace(/(\/|^)(layout|template|page)\.(js|jsx|ts|tsx)$/, "")
-          .split("/")
-          .map((segment) =>
-            segment.replace(/\[([^\]]+)\]/, (_, param) => ":" + param),
-          )
-          .join("/");
+      const pagePathPatternSegments = path
+        .relative(appDir, pageFile)
+        .replace(/^\[variants\]\//, "")
+        .replace(/(\/|^)(layout|template|page)\.(js|jsx|ts|tsx)$/, "")
+        .split("/")
+        .map((segment) =>
+          segment.replace(/\[([^\]]+)\]/, (_, param) => ":" + param),
+        );
+      if (affectsChildren) {
+        pagePathPatternSegments.push("*");
+      }
+      // add a leading '/' when joined
+      // (but it might already be present for page/layout right at the [variants] level)
+      if (
+        pagePathPatternSegments[0] !== "" ||
+        pagePathPatternSegments.length === 1
+      ) {
+        pagePathPatternSegments.unshift("");
+      }
+
+      const pagePathPattern = pagePathPatternSegments.join("/");
 
       const affectingVariantIdentifiers: string[] = [];
 
