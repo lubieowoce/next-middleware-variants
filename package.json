@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "generate-variant-config": "tsx app/build/variant-usage.ts",
+    "generate-variant-config": "tsx app/lib/variants/build/variant-usage.ts",
     "predev": "pnpm run generate-variant-config",
     "prebuild": "pnpm run generate-variant-config",
     "dev": "next dev --turbo",
