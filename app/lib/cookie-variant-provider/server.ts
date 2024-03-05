@@ -81,11 +81,13 @@ export function createCookieVariantResolver({
       const existing = getExisting();
       if (!(id in existing)) {
         if (!canPersist) {
-          throw new Error([
-            `CookieVariantProvider :: A New cookie variant ('${id}') needs to be assigned, but it cannot be persisted.`,
-            'This is probably because it was accessed during a dynamic render.',
-            'To fix this, read it in middleware.'
-          ].join(' '))
+          throw new Error(
+            [
+              `CookieVariantProvider :: A New cookie variant ('${id}') needs to be assigned, but it cannot be persisted.`,
+              "This is probably because it was accessed during a dynamic render.",
+              "To fix this, read it in middleware.",
+            ].join(" "),
+          );
         }
         variantValue = await getRandomVariant(variants);
         if (persist === null) {
