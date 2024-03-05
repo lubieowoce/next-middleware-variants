@@ -3,6 +3,14 @@ import * as path from "node:path";
 import * as ts from "typescript";
 import { globSync } from "glob";
 import chalk from "chalk";
+import { pathsToFileTree } from "./file-tree";
+import {
+  toRouteTree,
+  type RouteTree,
+  componentKeys,
+  leafComponentKeys,
+  allComponentKeys,
+} from "./routing";
 
 function createTsLanguageService(
   rootFileNames: string[],
@@ -56,12 +64,15 @@ function main() {
   const dir = process.cwd();
   const appDir = path.join(dir, "app"); // TODO: handle src/
 
-  const rootFiles = globSync(["**/{layout,template,page}.{js,jsx,ts,tsx}"], {
-    cwd: appDir,
-    ignore: "node_modules/**",
-    absolute: true,
-    nodir: true,
-  })
+  const rootFiles = globSync(
+    ["**/{layout,template,page,default,error,loading}.{js,jsx,ts,tsx}"],
+    {
+      cwd: appDir,
+      ignore: "node_modules/**",
+      absolute: true,
+      nodir: true,
+    },
+  )
     .sort()
     .reverse();
 
@@ -97,6 +108,17 @@ function main() {
       console.error(`Default export not found for file ${rootFile}`, err);
     }
   }
+
+  //=================================================
+  // Build route tree
+  //=================================================
+
+  const fileTree = pathsToFileTree(rootFiles, { appDir });
+  const routeTree = toRouteTree(fileTree);
+
+  // console.log(
+  //   require("node:util").inspect(routeTree, { depth: undefined, colors: true }),
+  // );
 
   //=================================================
   // Find all variants
@@ -335,7 +357,10 @@ function main() {
       const pagePathPatternSegments = path
         .relative(appDir, pageFile)
         .replace(/^\[variants\]\//, "")
-        .replace(/(\/|^)(layout|template|page)\.(js|jsx|ts|tsx)$/, "")
+        .replace(
+          /(\/|^)(layout|template|page|default|error|not-found|loading)\.(js|jsx|ts|tsx)$/,
+          "",
+        )
         .split("/")
         .map((segment) =>
           segment.replace(/\[([^\]]+)\]/, (_, param) => ":" + param),
@@ -376,8 +401,95 @@ function main() {
           `[{ pathname: "${pagePathPattern}" }, [${affectingVariantIdentifiers.join(", ")}]],`,
       );
     }
+    code.push("  ],");
 
-    code.push(...end);
+    {
+      code.push("  routes: (");
+
+      type RouteTreeWithVariantSymbols = Omit<RouteTree, "children"> & {
+        variants?: Record<string, ts.Symbol[]>;
+        children?: RouteTreeWithVariantSymbols[];
+      };
+
+      const relativizeMutable = (tree: RouteTreeWithVariantSymbols) => {
+        for (const key of allComponentKeys) {
+          if (key in tree) {
+            tree[key] = path.relative(appDir, tree[key]!);
+          }
+        }
+        return tree;
+      };
+
+      function addVariantsToRouteTree(
+        tree: RouteTree,
+      ): RouteTreeWithVariantSymbols {
+        if (!tree.children) {
+          const componentKey = leafComponentKeys.find((key) => key in tree);
+          if (!componentKey) {
+            throw new Error(
+              `Internal error: Didn't find any of ${JSON.stringify(leafComponentKeys)} found in tree leaf`,
+            );
+          }
+          const component = tree[componentKey]!;
+          const pageSymbol = rootComponentSymbolsByPage.get(component)!;
+          const variants = findReferencedVariants(pageSymbol);
+          return relativizeMutable({
+            ...tree,
+            variants: { [componentKey]: [...variants] },
+          });
+        }
+        let hasVariants = false;
+        const allVariants: Record<string, ts.Symbol[]> = {};
+        for (const componentKey of componentKeys) {
+          const componentPath = tree[componentKey];
+          if (componentPath) {
+            const pageSymbol = rootComponentSymbolsByPage.get(componentPath)!;
+            const variants = findReferencedVariants(pageSymbol);
+            hasVariants = true;
+            allVariants[componentKey] = [...variants];
+          }
+        }
+        return relativizeMutable({
+          variants: hasVariants ? allVariants : undefined,
+          ...tree,
+          children: tree.children?.map((child) =>
+            addVariantsToRouteTree(child),
+          ),
+        });
+      }
+
+      const treeWithVariants = addVariantsToRouteTree(routeTree);
+      function unquote(expr: string) {
+        return "__$$(" + expr + ")$$__";
+      }
+      function applyUnqotes(code: string) {
+        return code.replaceAll(/"__\$\$\((.+?)\)\$\$__"/g, (_, expr) => expr);
+      }
+      const serialized = applyUnqotes(
+        JSON.stringify(
+          treeWithVariants,
+          (key, value) => {
+            if (key === "variants" && value && typeof value === "object") {
+              const allVariants = value as Record<string, ts.Symbol[]>;
+              return Object.fromEntries(
+                Object.entries(allVariants).map(([key, variants]) => [
+                  key,
+                  variants.map((sym) => unquote(identifiers.get(sym)!)),
+                ]),
+              );
+            }
+            return value;
+          },
+          2,
+        ),
+      );
+      code.push(...indentEach(serialized.split("\n"), 2));
+
+      code.push("  ),");
+    }
+
+    code.push("};");
+    // code.push(...end);
 
     code.unshift(...imports, "");
 
