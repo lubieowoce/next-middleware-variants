@@ -1,8 +1,6 @@
-// console.log(
-//   require("node:util").inspect(fileTree, { depth: undefined, colors: true }),
-// );
+import type { FileTree } from "./file-tree";
 
-export const wrapperComponentKeys = ["layout", "template"];
+export const wrapperComponentKeys = ["layout", "template"] as const;
 
 export const errorComponentKeys = ["error", "notFound"] as const;
 
@@ -21,15 +19,16 @@ export const allComponentKeys = [
 export type RouteTree = {
   segment: string;
   dynamic?: DynamicSegmentKind;
-  // special
-  layout?: string;
-  template?: string;
-  error?: string;
-  notFound?: string;
-  // leaf
-  page?: string;
-  default?: string;
-  // others
+  components?: {
+    // special
+    layout?: string;
+    template?: string;
+    error?: string;
+    notFound?: string;
+    // leaf
+    page?: string;
+    default?: string;
+  };
   // TODO: this will need to be `parallelRoutes` someday...
   children?: RouteTree[];
 };
@@ -95,7 +94,9 @@ export function toRouteTree(item: FileTree): RouteTree {
     }
     return {
       segment,
-      [bareName]: absPath,
+      components: {
+        [bareName]: absPath,
+      },
     };
   } else {
     if (isParallelRouteDir(name)) {
@@ -116,28 +117,32 @@ export function toRouteTree(item: FileTree): RouteTree {
     if (segmentKind) {
       result.dynamic = segmentKind;
     }
-    const specialChildren = new Set<FileTree>();
+
+    const components: NonNullable<RouteTree["components"]> = {};
     for (const child of children) {
-      if (!result.layout && /^layout\.(js|jsx|ts|tsx)$/.test(child.name)) {
-        result.layout = child.absPath;
-        specialChildren.add(child);
+      if (!components.layout && /^layout\.(js|jsx|ts|tsx)$/.test(child.name)) {
+        components.layout = child.absPath;
       }
-      if (!result.template && /^template\.(js|jsx|ts|tsx)$/.test(child.name)) {
-        result.template = child.absPath;
-        specialChildren.add(child);
+      if (
+        !components.template &&
+        /^template\.(js|jsx|ts|tsx)$/.test(child.name)
+      ) {
+        components.template = child.absPath;
       }
-      if (!result.error && /^error\.(js|jsx|ts|tsx)$/.test(child.name)) {
-        result.error = child.absPath;
-        specialChildren.add(child);
+      if (!components.error && /^error\.(js|jsx|ts|tsx)$/.test(child.name)) {
+        components.error = child.absPath;
       }
-      if (!result.notFound && /^not-found\.(js|jsx|ts|tsx)$/.test(child.name)) {
-        result.notFound = child.absPath;
-        specialChildren.add(child);
+      if (
+        !components.notFound &&
+        /^not-found\.(js|jsx|ts|tsx)$/.test(child.name)
+      ) {
+        components.notFound = child.absPath;
       }
     }
-
+    result.components = components;
+    const componentsSet = new Set(Object.values(components));
     const routeChildren = children
-      .filter((child) => !specialChildren.has(child))
+      .filter((child) => !componentsSet.has(child.absPath))
       .map(toRouteTree);
 
     // if (routeChildren.length === 1 && !specialChildren.size) {

@@ -413,8 +413,8 @@ function main() {
 
       const relativizeMutable = (tree: RouteTreeWithVariantSymbols) => {
         for (const key of allComponentKeys) {
-          if (key in tree) {
-            tree[key] = path.relative(appDir, tree[key]!);
+          if (tree.components?.[key]) {
+            tree.components[key] = path.relative(appDir, tree.components[key]!);
           }
         }
         return tree;
@@ -423,30 +423,35 @@ function main() {
       function addVariantsToRouteTree(
         tree: RouteTree,
       ): RouteTreeWithVariantSymbols {
+        const { components } = tree;
         if (!tree.children) {
-          const componentKey = leafComponentKeys.find((key) => key in tree);
+          const componentKey =
+            components && leafComponentKeys.find((key) => key in components);
           if (!componentKey) {
             throw new Error(
-              `Internal error: Didn't find any of ${JSON.stringify(leafComponentKeys)} found in tree leaf`,
+              `Internal error: Didn't find any of ${JSON.stringify(leafComponentKeys)} in tree leaf`,
             );
           }
-          const component = tree[componentKey]!;
-          const pageSymbol = rootComponentSymbolsByPage.get(component)!;
+          const componentPath = components[componentKey]!;
+          const pageSymbol = rootComponentSymbolsByPage.get(componentPath)!;
           const variants = findReferencedVariants(pageSymbol);
           return relativizeMutable({
             ...tree,
             variants: { [componentKey]: [...variants] },
           });
         }
+
         let hasVariants = false;
         const allVariants: Record<string, ts.Symbol[]> = {};
-        for (const componentKey of componentKeys) {
-          const componentPath = tree[componentKey];
-          if (componentPath) {
-            const pageSymbol = rootComponentSymbolsByPage.get(componentPath)!;
-            const variants = findReferencedVariants(pageSymbol);
-            hasVariants = true;
-            allVariants[componentKey] = [...variants];
+        if (components) {
+          for (const componentKey of componentKeys) {
+            const componentPath = components[componentKey];
+            if (componentPath) {
+              const pageSymbol = rootComponentSymbolsByPage.get(componentPath)!;
+              const variants = findReferencedVariants(pageSymbol);
+              hasVariants = true;
+              allVariants[componentKey] = [...variants];
+            }
           }
         }
         return relativizeMutable({
