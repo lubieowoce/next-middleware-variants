@@ -387,7 +387,9 @@ function main() {
           identifiers.set(variantSym, importedAs);
           const source = path.relative(
             generatedConfigDir,
-            getDeclaration(variantSym).getSourceFile().fileName,
+            getDeclaration(variantSym)
+              .getSourceFile()
+              .fileName.replace(/\.(js|jsx|ts|tsx)$/, ""),
           );
           imports.push(
             `import { ${variantSym.getName()} as ${importedAs} } from '${source}';`,
@@ -497,6 +499,7 @@ function main() {
     // code.push(...end);
 
     code.unshift(...imports, "");
+    code.unshift("// @ts-check");
 
     const finalCode = unlines(code);
     if (!fs.existsSync(generatedConfigDir)) {
