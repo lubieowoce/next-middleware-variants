@@ -45,19 +45,19 @@ function getDynamicSegmentKind(segment: string) {
   {
     const match = segment.match(/^\[\[\.\.\.(.+?)\]\]$/);
     if (match) {
-      return { kind: "optional-catchall" as const, slug: match[1] };
+      return { type: "optional-catchall" as const, param: match[1] };
     }
   }
   {
     const match = segment.match(/^\[\.\.\.(.+?)\]$/);
     if (match) {
-      return { kind: "catchall" as const, slug: match[1] };
+      return { type: "catchall" as const, param: match[1] };
     }
   }
   {
     const match = segment.match(/^\[(.+?)\]$/);
     if (match) {
-      return { kind: "dynamic" as const, slug: match[1] };
+      return { type: "dynamic" as const, param: match[1] };
     }
   }
   return null;

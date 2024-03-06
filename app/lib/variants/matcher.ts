@@ -87,14 +87,14 @@ function createRouteMatcher(config: VariantMatcherConfig) {
         }
         return matchChildren(rest, tree, children);
       } else {
-        switch (dynamic.kind) {
+        switch (dynamic.type) {
           // TODO: if there's other segments at this level, we should check them first...
           case "optional-catchall":
           case "catchall": {
             throw new Error("Not implemented: catchall segments");
           }
           case "dynamic": {
-            // normally, we'd substitute this and be done with it, but we don't actually care.
+            // normally, we'd substitute this, but we don't actually care here, because we're only looking for matches.
             const { children } = tree;
             if (!children) {
               throw new NotFoundError();
